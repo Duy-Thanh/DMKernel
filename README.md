@@ -9,7 +9,8 @@ DMKernel is a runtime environment that provides:
 1. A command-line interface for interacting with data mining algorithms
 2. A custom domain-specific language for expressing data mining operations
 3. Optimized primitives for numerical and statistical computations
-4. Special functions for seismic data analysis and aftershock prediction
+4. Special functions for Data Mining and AI applications
+5. Using DM Programming Language - a programming language designed special for DMKernel
 
 ## Architecture
 
