@@ -19,7 +19,7 @@ The system is organized into several components:
 - **Core**: Memory management, context handling, and value system
 - **Shell**: Command-line interface and interactive environment
 - **Language**: Parser and interpreter for the custom language
-- **Primitives**: Data mining and earthquake-specific algorithms
+- **Primitives**: Data mining and AI algorithms
 
 ## Building from Source
 
@@ -58,7 +58,7 @@ Execute a script file:
 
 ## Language Reference
 
-The DMKernel language is designed specifically for data mining tasks with a focus on earthquake aftershock prediction. It has features for:
+The DMKernel language is designed specifically for data mining tasks and AI applications. It has features for:
 
 - Matrix and vector operations
 - Statistical functions and distributions
@@ -94,6 +94,3 @@ predictions = model.predict(new_data)
 
 This project is open source and available under the MIT License.
 
-## Contributors
-
-- Developed as a Data Mining course project 
