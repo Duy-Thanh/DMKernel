@@ -1,40 +1,22 @@
-// Test script for DMKernel
-// This is a simple program to test basic operations
+// Test script for DMKernel showing arithmetic expressions
 
-// Simple arithmetic
-10 + 5;  // Should evaluate to 15
+// Basic arithmetic operations
+10 + 5;          // Addition: 15
+20 - 7;          // Subtraction: 13 
+3 * 4;           // Multiplication: 12
+15 / 3;          // Division: 5
 
-// String operations
-"Hello, " + "World!";  // Should concatenate strings
+// Operator precedence
+10 + 2 * 3;      // Multiplication before addition: 16
+(10 + 2) * 3;    // Parentheses override precedence: 36
 
-// Boolean operations
-true && !false;  // Should evaluate to true
+// Unary operations
+-5 + 10;         // Unary negation: 5
+-(5 + 10);       // Unary with parentheses: -15
 
-// Variable assignment
-let x = 42;
-x * 2;  // Should evaluate to 84
+// Complex expressions
+2 * (10 + 3) / (5 - 2);  // 2 * 13 / 3 = 8.666...
+10 + 20 - 15 * 2 + 30 / 5;  // 10 + 20 - 30 + 6 = 6
 
-// Conditional expression
-if (x > 20) {
-    "x is greater than 20";
-} else {
-    "x is less than or equal to 20";
-}
-
-// Loop
-let i = 0;
-let sum = 0;
-while (i < 5) {
-    sum = sum + i;
-    i = i + 1;
-}
-sum;  // Should evaluate to 10
-
-// Function definition and call
-function add(a, b) {
-    return a + b;
-}
-add(3, 7);  // Should evaluate to 10
-
-// End of script with a final expression
-"Script executed successfully!"; 
+// The final expression result
+(5 + 7) * (10 - 6) / 2;  // 12 * 4 / 2 = 24 

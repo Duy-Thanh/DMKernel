@@ -102,6 +102,10 @@ static dm_node_t* create_node(dm_context_t *ctx, dm_node_type_t type) {
 static dm_node_t* parse_expression(dm_parser_t *parser);
 static dm_node_t* parse_statement(dm_parser_t *parser);
 static dm_node_t* parse_block(dm_parser_t *parser);
+static dm_node_t* parse_primary(dm_parser_t *parser);
+static dm_node_t* parse_assignment(dm_parser_t *parser);
+static dm_node_t* parse_binary(dm_parser_t *parser, int precedence);
+static dm_node_t* parse_unary(dm_parser_t *parser);
 
 // Parse a program (multiple statements)
 static dm_node_t* parse_program(dm_parser_t *parser) {
@@ -307,7 +311,183 @@ static dm_node_t* parse_variable(dm_parser_t *parser) {
 // Parse a statement (dummy implementation for now)
 static dm_node_t* parse_statement(dm_parser_t *parser) {
     // For now, just treat all literals as statements
-    return parse_literal(parser);
+    dm_node_t* expr = parse_expression(parser);
+    
+    if (expr == NULL) {
+        return NULL;
+    }
+    
+    // Expect a semicolon at the end of the statement
+    if (!match_symbol(parser, ';')) {
+        report_error(parser, "Expected ';' after expression");
+        if (expr) dm_node_free(parser->ctx, expr);
+        return NULL;
+    }
+    
+    // Consume the semicolon
+    if (consume(parser) != DM_SUCCESS) {
+        if (expr) dm_node_free(parser->ctx, expr);
+        return NULL;
+    }
+    
+    return expr;
+}
+
+// Parse an expression
+static dm_node_t* parse_expression(dm_parser_t *parser) {
+    // Start with lowest precedence
+    return parse_binary(parser, 1);
+}
+
+// Parse a primary expression (literals, variables, grouping)
+static dm_node_t* parse_primary(dm_parser_t *parser) {
+    // Try to parse a literal first
+    dm_node_t *node = parse_literal(parser);
+    if (node != NULL) {
+        return node;
+    }
+    
+    // Try to parse a variable
+    node = parse_variable(parser);
+    if (node != NULL) {
+        return node;
+    }
+    
+    // Try to parse a grouped expression
+    if (match_symbol(parser, '(')) {
+        if (consume(parser) != DM_SUCCESS) {
+            return NULL;
+        }
+        
+        dm_node_t *expr = parse_expression(parser);
+        if (expr == NULL) {
+            return NULL;
+        }
+        
+        if (!match_symbol(parser, ')')) {
+            report_error(parser, "Expected ')' after expression");
+            dm_node_free(parser->ctx, expr);
+            return NULL;
+        }
+        
+        if (consume(parser) != DM_SUCCESS) {
+            dm_node_free(parser->ctx, expr);
+            return NULL;
+        }
+        
+        return expr;
+    }
+    
+    // Nothing matched
+    return NULL;
+}
+
+// Get operator precedence
+static int get_binary_precedence(char op) {
+    switch (op) {
+        case '+':
+        case '-':
+            return 1;
+        case '*':
+        case '/':
+        case '%':
+            return 2;
+        default:
+            return 0;
+    }
+}
+
+// Get operator type
+static dm_operator_t get_binary_operator(char op) {
+    switch (op) {
+        case '+': return DM_OP_ADD;
+        case '-': return DM_OP_SUB;
+        case '*': return DM_OP_MUL;
+        case '/': return DM_OP_DIV;
+        case '%': return DM_OP_MOD;
+        default:  return (dm_operator_t)-1;
+    }
+}
+
+// Parse a binary expression with precedence climbing
+static dm_node_t* parse_binary(dm_parser_t *parser, int precedence) {
+    dm_node_t *left = parse_unary(parser);
+    if (left == NULL) {
+        return NULL;
+    }
+    
+    while (match(parser, DM_TOKEN_OPERATOR) && 
+           get_binary_precedence(parser->current.text[0]) >= precedence) {
+        
+        // Get operator
+        char op_char = parser->current.text[0];
+        dm_operator_t op = get_binary_operator(op_char);
+        int next_precedence = get_binary_precedence(op_char) + 1;
+        
+        // Consume operator
+        if (consume(parser) != DM_SUCCESS) {
+            dm_node_free(parser->ctx, left);
+            return NULL;
+        }
+        
+        // Parse right operand with higher precedence
+        dm_node_t *right = parse_binary(parser, next_precedence);
+        if (right == NULL) {
+            dm_node_free(parser->ctx, left);
+            return NULL;
+        }
+        
+        // Create binary node
+        dm_node_t *binary = create_node(parser->ctx, DM_NODE_BINARY_OP);
+        if (binary == NULL) {
+            dm_node_free(parser->ctx, left);
+            dm_node_free(parser->ctx, right);
+            return NULL;
+        }
+        
+        binary->binary.op = op;
+        binary->binary.left = left;
+        binary->binary.right = right;
+        
+        left = binary;
+    }
+    
+    return left;
+}
+
+// Parse a unary expression
+static dm_node_t* parse_unary(dm_parser_t *parser) {
+    // Check for unary operators
+    if ((match(parser, DM_TOKEN_OPERATOR) && parser->current.text[0] == '-') || 
+        (match(parser, DM_TOKEN_OPERATOR) && parser->current.text[0] == '!')) {
+        dm_operator_t op = parser->current.text[0] == '-' ? DM_OP_NEG : DM_OP_NOT;
+        
+        // Consume operator
+        if (consume(parser) != DM_SUCCESS) {
+            return NULL;
+        }
+        
+        // Parse operand
+        dm_node_t *operand = parse_unary(parser);
+        if (operand == NULL) {
+            return NULL;
+        }
+        
+        // Create unary node
+        dm_node_t *unary = create_node(parser->ctx, DM_NODE_UNARY_OP);
+        if (unary == NULL) {
+            dm_node_free(parser->ctx, operand);
+            return NULL;
+        }
+        
+        unary->unary.op = op;
+        unary->unary.operand = operand;
+        
+        return unary;
+    }
+    
+    // Not a unary expression, try primary
+    return parse_primary(parser);
 }
 
 // Main parse function

@@ -106,8 +106,8 @@ dm_error_t dm_execute(dm_context_t *ctx, const char *code) {
         return err;
     }
     
-    // Print the result to output if it exists and we're in interactive mode
-    if (result != NULL && ctx->interactive) {
+    // Print the result to output if it exists
+    if (result != NULL) {
         char *str = NULL;
         err = dm_node_to_string(ctx, result, &str);
         

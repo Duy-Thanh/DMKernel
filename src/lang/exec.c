@@ -433,37 +433,46 @@ static dm_error_t eval_return(dm_context_t *ctx, dm_node_t *node, dm_node_t **re
     }
 }
 
-// Program (sequence of statements)
+// Evaluate a program (multiple statements)
 static dm_error_t eval_program(dm_context_t *ctx, dm_node_t *node, dm_node_t **result) {
-    dm_node_t *res = NULL;
-    dm_error_t err = DM_SUCCESS;
+    if (ctx == NULL || node == NULL || result == NULL || node->type != DM_NODE_PROGRAM) {
+        return DM_ERROR_INVALID_ARGUMENT;
+    }
     
-    // Execute each statement in the program
+    // Default result is null
+    *result = NULL;
+    
+    // Evaluate each statement, keeping only the last result
     for (size_t i = 0; i < node->program.count; i++) {
-        // Free the previous result if it exists
-        if (res != NULL) {
-            dm_node_free(ctx, res);
-            res = NULL;
+        // Free the previous result if there is one
+        if (*result != NULL) {
+            dm_node_free(ctx, *result);
+            *result = NULL;
         }
         
         // Evaluate the current statement
-        err = dm_eval_node(ctx, node->program.statements[i], &res);
+        dm_error_t err = dm_eval_node(ctx, node->program.statements[i], result);
         if (err != DM_SUCCESS) {
+            // If any statement fails, abort
+            if (*result != NULL) {
+                dm_node_free(ctx, *result);
+                *result = NULL;
+            }
             return err;
         }
-    }
-    
-    // If no statements, return null
-    if (res == NULL) {
-        res = create_result_node(ctx, DM_NODE_LITERAL);
-        if (res == NULL) {
-            return DM_ERROR_MEMORY_ALLOCATION;
-        }
         
-        res->literal.type = DM_LITERAL_NULL;
+        // For debugging purposes, print each intermediate result
+        if (i < node->program.count - 1 && *result != NULL && ctx->interactive) {
+            char *str = NULL;
+            dm_error_t str_err = dm_node_to_string(ctx, *result, &str);
+            
+            if (str_err == DM_SUCCESS && str != NULL) {
+                fprintf(ctx->output, "  => %s\n", str);  // Indented for intermediate results
+                dm_free(ctx, str);
+            }
+        }
     }
     
-    *result = res;
     return DM_SUCCESS;
 }
 

@@ -106,6 +106,13 @@ static void skip_whitespace_and_comments(dm_lexer_t *lexer) {
     }
 }
 
+// Check if a character is an operator
+static bool is_operator(char c) {
+    return (c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || 
+            c == '=' || c == '<' || c == '>' || c == '!' || 
+            c == '&' || c == '|' || c == '^');
+}
+
 // Scan the next token
 dm_error_t dm_lexer_next_token(dm_lexer_t *lexer, dm_token_t *token) {
     if (lexer == NULL || token == NULL) {
@@ -237,73 +244,45 @@ dm_error_t dm_lexer_next_token(dm_lexer_t *lexer, dm_token_t *token) {
             lexer->position++;
             lexer->column++;
         }
-    } else if (strchr("+-*/%=<>!&|^~?:.,;()[]{}", c) != NULL) {
-        // Operator or symbol
-        lexer->position++;
-        lexer->column++;
+    } else if (is_operator(c)) {
+        // Operator
+        token->type = DM_TOKEN_OPERATOR;
+        token->text = (char *)lexer->source + token_start;
+        token->length = 1;
+        token->line = token_line;
+        token->column = token_column;
         
-        // Check for two-character operators
-        if (lexer->position < lexer->source_len) {
-            char next = lexer->source[lexer->position];
+        // Handle multi-character operators (e.g., ==, !=, etc.)
+        if (lexer->position + 1 < lexer->source_len) {
+            char next = lexer->source[lexer->position + 1];
             
-            // Two-character operators
-            if ((c == '+' && next == '+') ||
-                (c == '-' && next == '-') ||
-                (c == '=' && next == '=') ||
-                (c == '!' && next == '=') ||
-                (c == '<' && next == '=') ||
-                (c == '>' && next == '=') ||
-                (c == '&' && next == '&') ||
-                (c == '|' && next == '|') ||
-                (c == '+' && next == '=') ||
-                (c == '-' && next == '=') ||
-                (c == '*' && next == '=') ||
-                (c == '/' && next == '=') ||
-                (c == '%' && next == '=') ||
-                (c == '&' && next == '=') ||
-                (c == '|' && next == '=') ||
-                (c == '^' && next == '=') ||
-                (c == '>' && next == '>') ||
-                (c == '<' && next == '<')) {
+            if ((c == '=' && next == '=') ||  // ==
+                (c == '!' && next == '=') ||  // !=
+                (c == '<' && next == '=') ||  // <=
+                (c == '>' && next == '=') ||  // >=
+                (c == '&' && next == '&') ||  // &&
+                (c == '|' && next == '|')) {  // ||
                 
+                token->length = 2;
                 lexer->position++;
                 lexer->column++;
-                
-                // Check for three-character operators
-                if (lexer->position < lexer->source_len) {
-                    char next2 = lexer->source[lexer->position];
-                    
-                    if (((c == '>' && next == '>' && next2 == '=') ||
-                         (c == '<' && next == '<' && next2 == '=') ||
-                         (c == '=' && next == '=' && next2 == '='))) {
-                        
-                        lexer->position++;
-                        lexer->column++;
-                    }
-                }
             }
         }
         
-        if (strchr("()[]{};,.", c) != NULL) {
-            token->type = DM_TOKEN_SYMBOL;
-        } else {
-            token->type = DM_TOKEN_OPERATOR;
-        }
-        
-        token->text = (char *)lexer->source + token_start;
-        token->length = lexer->position - token_start;
-    } else {
-        // Unknown character
         lexer->position++;
         lexer->column++;
         
-        token->type = DM_TOKEN_SYMBOL; // Treat as symbol for error handling
+    } else {
+        // Symbol or unknown character
+        token->type = DM_TOKEN_SYMBOL;
         token->text = (char *)lexer->source + token_start;
         token->length = 1;
+        token->line = token_line;
+        token->column = token_column;
+        
+        lexer->position++;
+        lexer->column++;
     }
-    
-    token->line = token_line;
-    token->column = token_column;
     
     // Update current token
     lexer->current = *token;
