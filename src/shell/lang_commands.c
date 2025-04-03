@@ -231,6 +231,120 @@ dm_error_t dm_cmd_run_script(dm_context_t *ctx, int argc, char **argv) {
     return DM_SUCCESS;
 }
 
+// Command to run a script
+dm_error_t dm_cmd_run(dm_context_t *ctx, int argc, char **argv) {
+    if (ctx == NULL || argc < 2) {
+        fprintf(ctx->output, "Usage: run <filename>\n");
+        return DM_ERROR_INVALID_ARGUMENT;
+    }
+    
+    // Get absolute path to the script
+    char *abs_path = NULL;
+    
+    // Get absolute path
+    dm_error_t path_err = dm_path_absolute(ctx, argv[1], &abs_path);
+    if (path_err != DM_SUCCESS) {
+        // Fall back to current directory + relative path
+        char *cwd = NULL;
+        dm_error_t cwd_err = dm_vfs_get_working_dir(ctx, &cwd);
+        if (cwd_err != DM_SUCCESS) {
+            fprintf(ctx->output, "Error getting current directory\n");
+            return cwd_err;
+        }
+        
+        char *joined_path = NULL;
+        dm_error_t join_err = dm_path_join(ctx, cwd, argv[1], &joined_path);
+        dm_free(ctx, cwd);
+        
+        if (join_err != DM_SUCCESS) {
+            fprintf(ctx->output, "Error joining paths\n");
+            return join_err;
+        }
+        
+        abs_path = joined_path;
+    }
+    
+    if (abs_path == NULL) {
+        fprintf(ctx->output, "Error: Memory allocation failed\n");
+        return DM_ERROR_MEMORY_ALLOCATION;
+    }
+    
+    // Check if file exists
+    bool exists = false;
+    dm_error_t exists_err = dm_file_exists(ctx, abs_path, &exists);
+    if (exists_err != DM_SUCCESS || !exists) {
+        fprintf(ctx->output, "Error: File not found: %s\n", argv[1]);
+        dm_free(ctx, abs_path);
+        return DM_ERROR_FILE_IO;
+    }
+    
+    // Open the file
+    dm_file_t *file = NULL;
+    dm_error_t open_err = dm_file_open(ctx, abs_path, DM_FILE_READ, &file);
+    if (open_err != DM_SUCCESS) {
+        fprintf(ctx->output, "Error: Failed to open file: %s\n", argv[1]);
+        dm_free(ctx, abs_path);
+        return open_err;
+    }
+    
+    // Get file size
+    size_t file_size = 0;
+    dm_error_t size_err = dm_file_size(ctx, abs_path, &file_size);
+    if (size_err != DM_SUCCESS) {
+        fprintf(ctx->output, "Error: Failed to get file size: %s\n", argv[1]);
+        dm_file_close(ctx, file);
+        dm_free(ctx, abs_path);
+        return size_err;
+    }
+    
+    // Allocate buffer for file content
+    char *content = dm_malloc(ctx, file_size + 1);
+    if (content == NULL) {
+        fprintf(ctx->output, "Error: Memory allocation failed\n");
+        dm_file_close(ctx, file);
+        dm_free(ctx, abs_path);
+        return DM_ERROR_MEMORY_ALLOCATION;
+    }
+    
+    // Read file content
+    size_t bytes_read = 0;
+    dm_error_t read_err = dm_file_read(ctx, file, content, file_size, &bytes_read);
+    if (read_err != DM_SUCCESS || bytes_read != file_size) {
+        fprintf(ctx->output, "Error: Failed to read file: %s\n", argv[1]);
+        dm_free(ctx, content);
+        dm_file_close(ctx, file);
+        dm_free(ctx, abs_path);
+        return read_err;
+    }
+    
+    // Null-terminate the buffer
+    content[bytes_read] = '\0';
+    
+    // Close the file
+    dm_file_close(ctx, file);
+    
+    // Execute the script
+    dm_node_t *result = NULL;
+    dm_error_t exec_err = dm_execute_source(ctx, content, bytes_read, &result);
+    if (exec_err != DM_SUCCESS) {
+        fprintf(ctx->output, "Error executing script: %s\n", dm_error_string(exec_err));
+        dm_free(ctx, abs_path);
+        dm_free(ctx, content);
+        return exec_err;
+    }
+    
+    // Free the result if available
+    if (result != NULL) {
+        dm_node_free(ctx, result);
+    }
+    
+    // Clean up
+    dm_free(ctx, abs_path);
+    dm_free(ctx, content);
+    
+    return DM_SUCCESS;
+}
+
 // Register language commands with the shell
 dm_error_t dm_register_lang_commands(dm_shell_t *shell) {
     if (shell == NULL) {

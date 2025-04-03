@@ -53,7 +53,6 @@ static void create_test_allocations(dm_context_t *ctx) {
 // Initialize kernel
 dm_error_t dm_init(dm_context_t **ctx) {
     // Create context
-    // fprintf(stderr, "Creating context...\n");
     dm_error_t error = dm_context_create(ctx);
     if (error != DM_SUCCESS) {
         fprintf(stderr, "Failed to create context: %s\n", dm_error_string(error));
@@ -61,7 +60,6 @@ dm_error_t dm_init(dm_context_t **ctx) {
     }
     
     // Initialize filesystem
-    // fprintf(stderr, "Initializing filesystem...\n");
     error = dm_fs_init(*ctx);
     if (error != DM_SUCCESS) {
         fprintf(stderr, "Failed to initialize filesystem: %s\n", dm_error_string(error));
@@ -106,17 +104,8 @@ dm_error_t dm_execute(dm_context_t *ctx, const char *code) {
         return err;
     }
     
-    // Print the result to output if it exists
+    // Free the result if available
     if (result != NULL) {
-        char *str = NULL;
-        err = dm_node_to_string(ctx, result, &str);
-        
-        if (err == DM_SUCCESS && str != NULL) {
-            fprintf(ctx->output, "=> %s\n", str);
-            DM_FREE(ctx, str);
-        }
-        
-        // Free the result node
         dm_node_free(ctx, result);
     }
     

@@ -40,12 +40,9 @@ dm_error_t dm_vfs_init(dm_context_t *ctx) {
         return DM_ERROR_INVALID_ARGUMENT;
     }
     
-    fprintf(stderr, "Creating VFS...\n");
-    
     // Create VFS structure
     dm_vfs_t *vfs = dm_malloc(ctx, sizeof(dm_vfs_t));
     if (vfs == NULL) {
-        fprintf(stderr, "Failed to allocate VFS structure\n");
         return DM_ERROR_MEMORY_ALLOCATION;
     }
     
@@ -60,26 +57,20 @@ dm_error_t dm_vfs_init(dm_context_t *ctx) {
     // Set working directory to current directory
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
-        fprintf(stderr, "Failed to get current directory: %s\n", strerror(errno));
         dm_free(ctx, vfs);
         return DM_ERROR_FILE_IO;
     }
     
-    fprintf(stderr, "Current directory: %s\n", cwd);
-    
     vfs->working_dir = dm_malloc(ctx, strlen(cwd) + 1);
     if (vfs->working_dir == NULL) {
-        fprintf(stderr, "Failed to allocate working_dir\n");
         dm_free(ctx, vfs);
         return DM_ERROR_MEMORY_ALLOCATION;
     }
     strcpy(vfs->working_dir, cwd);
     
     // Mount root to current directory
-    fprintf(stderr, "Mounting / to %s...\n", cwd);
     dm_error_t err = dm_vfs_mount(ctx, "/", cwd);
     if (err != DM_SUCCESS) {
-        fprintf(stderr, "Failed to mount root: %s\n", dm_error_string(err));
         dm_free(ctx, vfs->working_dir);
         dm_free(ctx, vfs);
         return err;
@@ -90,10 +81,8 @@ dm_error_t dm_vfs_init(dm_context_t *ctx) {
     vfs_val.type = DM_TYPE_OBJECT;
     vfs_val.as.object = (dm_object_t*)vfs;
     
-    fprintf(stderr, "Storing VFS in context...\n");
     err = dm_scope_define(ctx, ctx->global_scope, DM_VFS_KEY, vfs_val);
     if (err != DM_SUCCESS) {
-        fprintf(stderr, "Failed to store VFS in context: %s\n", dm_error_string(err));
         // Clean up
         dm_vfs_unmount(ctx, "/");
         dm_free(ctx, vfs->working_dir);
@@ -101,7 +90,6 @@ dm_error_t dm_vfs_init(dm_context_t *ctx) {
         return err;
     }
     
-    fprintf(stderr, "VFS initialized successfully\n");
     return DM_SUCCESS;
 }
 
@@ -150,26 +138,21 @@ dm_error_t dm_vfs_cleanup(dm_context_t *ctx) {
 // Mount a real path to a virtual path
 dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *real_path) {
     if (ctx == NULL || mount_point == NULL || real_path == NULL) {
-        fprintf(stderr, "dm_vfs_mount: Invalid argument\n");
         return DM_ERROR_INVALID_ARGUMENT;
     }
     
-    fprintf(stderr, "dm_vfs_mount: Getting VFS...\n");
     // Get VFS
     dm_vfs_t *vfs = get_vfs(ctx);
     if (vfs == NULL) {
-        fprintf(stderr, "dm_vfs_mount: VFS is NULL, creating new mount entry\n");
         // First mount, just create a new entry directly
         dm_vfs_entry_t *new_entry = dm_malloc(ctx, sizeof(dm_vfs_entry_t));
         if (new_entry == NULL) {
-            fprintf(stderr, "dm_vfs_mount: Failed to allocate mount entry\n");
             return DM_ERROR_MEMORY_ALLOCATION;
         }
         
         // Copy name
         new_entry->name = dm_malloc(ctx, strlen(mount_point) + 1);
         if (new_entry->name == NULL) {
-            fprintf(stderr, "dm_vfs_mount: Failed to allocate mount name\n");
             dm_free(ctx, new_entry);
             return DM_ERROR_MEMORY_ALLOCATION;
         }
@@ -178,7 +161,6 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
         // Copy real path
         new_entry->real_path = dm_malloc(ctx, strlen(real_path) + 1);
         if (new_entry->real_path == NULL) {
-            fprintf(stderr, "dm_vfs_mount: Failed to allocate real path\n");
             dm_free(ctx, new_entry->name);
             dm_free(ctx, new_entry);
             return DM_ERROR_MEMORY_ALLOCATION;
@@ -191,7 +173,6 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
         // Create a new VFS if needed
         vfs = dm_malloc(ctx, sizeof(dm_vfs_t));
         if (vfs == NULL) {
-            fprintf(stderr, "dm_vfs_mount: Failed to allocate VFS\n");
             dm_free(ctx, new_entry->real_path);
             dm_free(ctx, new_entry->name);
             dm_free(ctx, new_entry);
@@ -202,7 +183,6 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
         vfs->mounts = new_entry;
         vfs->working_dir = dm_malloc(ctx, strlen(real_path) + 1);
         if (vfs->working_dir == NULL) {
-            fprintf(stderr, "dm_vfs_mount: Failed to allocate working_dir\n");
             dm_free(ctx, new_entry->real_path);
             dm_free(ctx, new_entry->name);
             dm_free(ctx, new_entry);
@@ -224,26 +204,20 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
         vfs_val.as.object = (dm_object_t*)vfs;
         
         // Store in context
-        fprintf(stderr, "dm_vfs_mount: Storing new VFS in context\n");
         dm_error_t err = dm_scope_define(ctx, ctx->global_scope, DM_VFS_KEY, vfs_val);
         if (err != DM_SUCCESS) {
-            fprintf(stderr, "dm_vfs_mount: Failed to store in context: %s\n", dm_error_string(err));
+            return err;
         }
         return err;
     }
-    
-    fprintf(stderr, "dm_vfs_mount: VFS found, checking existing mounts\n");
     
     // Check if mount point already exists
     dm_vfs_entry_t *entry = vfs->mounts;
     while (entry != NULL) {
         if (strcmp(entry->name, mount_point) == 0) {
-            fprintf(stderr, "dm_vfs_mount: Updating existing mount point\n");
-            
             // Update real path
             char *new_real_path = dm_malloc(ctx, strlen(real_path) + 1);
             if (new_real_path == NULL) {
-                fprintf(stderr, "dm_vfs_mount: Failed to allocate new real path\n");
                 return DM_ERROR_MEMORY_ALLOCATION;
             }
             strcpy(new_real_path, real_path);
@@ -254,25 +228,20 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
             // Set new path
             entry->real_path = new_real_path;
             
-            fprintf(stderr, "dm_vfs_mount: Successfully updated mount point\n");
             return DM_SUCCESS;
         }
         entry = entry->next;
     }
     
-    fprintf(stderr, "dm_vfs_mount: Creating new mount point\n");
-    
     // Create new mount point
     dm_vfs_entry_t *new_entry = dm_malloc(ctx, sizeof(dm_vfs_entry_t));
     if (new_entry == NULL) {
-        fprintf(stderr, "dm_vfs_mount: Failed to allocate new entry\n");
         return DM_ERROR_MEMORY_ALLOCATION;
     }
     
     // Copy name
     new_entry->name = dm_malloc(ctx, strlen(mount_point) + 1);
     if (new_entry->name == NULL) {
-        fprintf(stderr, "dm_vfs_mount: Failed to allocate name\n");
         dm_free(ctx, new_entry);
         return DM_ERROR_MEMORY_ALLOCATION;
     }
@@ -281,7 +250,6 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
     // Copy real path
     new_entry->real_path = dm_malloc(ctx, strlen(real_path) + 1);
     if (new_entry->real_path == NULL) {
-        fprintf(stderr, "dm_vfs_mount: Failed to allocate real path\n");
         dm_free(ctx, new_entry->name);
         dm_free(ctx, new_entry);
         return DM_ERROR_MEMORY_ALLOCATION;
@@ -292,7 +260,6 @@ dm_error_t dm_vfs_mount(dm_context_t *ctx, const char *mount_point, const char *
     new_entry->next = vfs->mounts;
     vfs->mounts = new_entry;
     
-    fprintf(stderr, "dm_vfs_mount: Successfully added new mount point\n");
     return DM_SUCCESS;
 }
 

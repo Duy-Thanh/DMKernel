@@ -313,27 +313,6 @@ dm_error_t dm_cmd_version(dm_context_t *ctx, int argc, char **argv) {
     return DM_SUCCESS;
 }
 
-// Built-in command: run
-dm_error_t dm_cmd_run(dm_context_t *ctx, int argc, char **argv) {
-    if (ctx == NULL || argc < 2) {
-        return DM_ERROR_INVALID_ARGUMENT;
-    }
-    
-    const char *filename = argv[1];
-    
-    // Print filename being executed
-    fprintf(ctx->output, "Running file: %s\n", filename);
-    
-    // Execute the file using the existing function
-    dm_error_t err = dm_execute_file(ctx, filename);
-    if (err != DM_SUCCESS) {
-        fprintf(ctx->error, "Error executing file: %s\n", dm_error_string(err));
-        return err;
-    }
-    
-    return DM_SUCCESS;
-}
-
 // Built-in command: exec
 dm_error_t dm_cmd_exec(dm_context_t *ctx, int argc, char **argv) {
     if (ctx == NULL || argc < 2) {

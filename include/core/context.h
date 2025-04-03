@@ -49,6 +49,7 @@ struct dm_context {
 // Context management functions
 dm_error_t dm_context_create(dm_context_t **ctx);
 void dm_context_destroy(dm_context_t *ctx);
+void dm_context_set_error(dm_context_t *ctx, const char *message);
 
 // Scope management
 dm_scope_t* dm_scope_create(dm_context_t *ctx, dm_scope_t *parent);

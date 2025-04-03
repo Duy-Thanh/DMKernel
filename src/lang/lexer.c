@@ -3,31 +3,38 @@
 #include <string.h>
 #include <ctype.h>
 #include "../../include/lang/parser.h"
+#include "../../include/core/debug.h"
 
-// List of keywords
-static const char *keywords[] = {
-    "if", "else", "while", "for", "function", "return",
-    "break", "continue", "import", "true", "false", "null",
-    "let", "const", "var", "matrix", "vector", "int",
-    "float", "string", "bool", "void", NULL
+// Override debug macros locally to disable them
+#undef DM_DEBUG_ERROR_PRINT
+#undef DM_DEBUG_WARN_PRINT
+#undef DM_DEBUG_INFO_PRINT
+#undef DM_DEBUG_VERBOSE_PRINT
+#define DM_DEBUG_ERROR_PRINT(...)
+#define DM_DEBUG_WARN_PRINT(...)
+#define DM_DEBUG_INFO_PRINT(...)
+#define DM_DEBUG_VERBOSE_PRINT(...)
+
+// Keywords (alphabetically sorted)
+static const char *KEYWORDS[] = {
+    "break", "case", "class", "const", "continue", "default",
+    "else", "export", "extends", "false", "for", "function",
+    "if", "import", "let", "null", "return", "static", "super",
+    "switch", "this", "true", "var", "while"
 };
 
-// Check if a string is a keyword
-static bool is_keyword(const char *str) {
-    for (int i = 0; keywords[i] != NULL; i++) {
-        if (strcmp(str, keywords[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
+static const size_t KEYWORD_COUNT = sizeof(KEYWORDS) / sizeof(KEYWORDS[0]);
 
 // Initialize lexer
 dm_error_t dm_lexer_init(dm_context_t *ctx, dm_lexer_t *lexer, const char *source, size_t source_len) {
     if (ctx == NULL || lexer == NULL || source == NULL) {
+        DM_DEBUG_ERROR_PRINT("Invalid arguments to dm_lexer_init\n");
         return DM_ERROR_INVALID_ARGUMENT;
     }
     
+    DM_DEBUG_INFO_PRINT("Initializing lexer with source length: %zu\n", source_len);
+    
+    // Initialize lexer
     lexer->ctx = ctx;
     lexer->source = source;
     lexer->source_len = source_len;
@@ -42,17 +49,22 @@ dm_error_t dm_lexer_init(dm_context_t *ctx, dm_lexer_t *lexer, const char *sourc
     lexer->current.line = 1;
     lexer->current.column = 1;
     
+    DM_DEBUG_INFO_PRINT("Lexer initialized successfully.\n");
     return DM_SUCCESS;
 }
 
 // Skip whitespace and comments
 static void skip_whitespace_and_comments(dm_lexer_t *lexer) {
-    while (lexer->position < lexer->source_len) {
-        char c = lexer->source[lexer->position];
+    bool skipped_something;
+    
+    do {
+        skipped_something = false;
         
-        if (isspace(c)) {
-            // Update line and column for newlines
-            if (c == '\n') {
+        // Skip whitespace
+        while (lexer->position < lexer->source_len && 
+               (isspace(lexer->source[lexer->position]) || lexer->source[lexer->position] == '\r')) {
+            
+            if (lexer->source[lexer->position] == '\n') {
                 lexer->line++;
                 lexer->column = 1;
             } else {
@@ -60,171 +72,35 @@ static void skip_whitespace_and_comments(dm_lexer_t *lexer) {
             }
             
             lexer->position++;
-        } else if (c == '/' && lexer->position + 1 < lexer->source_len) {
-            if (lexer->source[lexer->position + 1] == '/') {
-                // Line comment, skip until end of line
-                lexer->position += 2;
-                lexer->column += 2;
-                
-                while (lexer->position < lexer->source_len && 
-                      lexer->source[lexer->position] != '\n') {
-                    lexer->position++;
-                    lexer->column++;
-                }
-            } else if (lexer->source[lexer->position + 1] == '*') {
-                // Block comment, skip until */
-                lexer->position += 2;
-                lexer->column += 2;
-                
-                while (lexer->position + 1 < lexer->source_len && 
-                      !(lexer->source[lexer->position] == '*' && 
-                        lexer->source[lexer->position + 1] == '/')) {
-                    
-                    if (lexer->source[lexer->position] == '\n') {
-                        lexer->line++;
-                        lexer->column = 1;
-                    } else {
-                        lexer->column++;
-                    }
-                    
-                    lexer->position++;
-                }
-                
-                if (lexer->position + 1 < lexer->source_len) {
-                    // Skip the */
-                    lexer->position += 2;
-                    lexer->column += 2;
-                }
-            } else {
-                // Not a comment, just a division operator
-                break;
-            }
-        } else {
-            // Not whitespace or comment
-            break;
-        }
-    }
-}
-
-// Check if a character is an operator
-static bool is_operator(char c) {
-    return (c == '+' || c == '-' || c == '*' || c == '/' || c == '%' || 
-            c == '=' || c == '<' || c == '>' || c == '!' || 
-            c == '&' || c == '|' || c == '^');
-}
-
-// Scan the next token
-dm_error_t dm_lexer_next_token(dm_lexer_t *lexer, dm_token_t *token) {
-    if (lexer == NULL || token == NULL) {
-        return DM_ERROR_INVALID_ARGUMENT;
-    }
-    
-    // Skip whitespace and comments
-    skip_whitespace_and_comments(lexer);
-    
-    // Check for end of file
-    if (lexer->position >= lexer->source_len) {
-        token->type = DM_TOKEN_EOF;
-        token->text = NULL;
-        token->length = 0;
-        token->line = lexer->line;
-        token->column = lexer->column;
-        return DM_SUCCESS;
-    }
-    
-    // Save token start position
-    size_t token_start = lexer->position;
-    size_t token_line = lexer->line;
-    size_t token_column = lexer->column;
-    
-    // Get current character
-    char c = lexer->source[lexer->position];
-    
-    if (isalpha(c) || c == '_') {
-        // Identifier or keyword
-        lexer->position++;
-        lexer->column++;
-        
-        while (lexer->position < lexer->source_len) {
-            c = lexer->source[lexer->position];
-            if (isalnum(c) || c == '_') {
-                lexer->position++;
-                lexer->column++;
-            } else {
-                break;
-            }
+            skipped_something = true;
         }
         
-        size_t length = lexer->position - token_start;
-        char *text = (char *)lexer->source + token_start;
-        
-        // Check if it's a keyword
-        if (is_keyword(text)) {
-            token->type = DM_TOKEN_KEYWORD;
-        } else {
-            token->type = DM_TOKEN_IDENTIFIER;
-        }
-        
-        token->text = text;
-        token->length = length;
-    } else if (isdigit(c) || (c == '.' && lexer->position + 1 < lexer->source_len && isdigit(lexer->source[lexer->position + 1]))) {
-        // Number
-        bool has_dot = (c == '.');
-        lexer->position++;
-        lexer->column++;
-        
-        while (lexer->position < lexer->source_len) {
-            c = lexer->source[lexer->position];
+        // Skip single-line comments
+        if (lexer->position + 1 < lexer->source_len && 
+            lexer->source[lexer->position] == '/' && lexer->source[lexer->position + 1] == '/') {
             
-            if (isdigit(c)) {
+            lexer->position += 2;  // Skip '//'
+            lexer->column += 2;
+            
+            while (lexer->position < lexer->source_len && lexer->source[lexer->position] != '\n') {
                 lexer->position++;
                 lexer->column++;
-            } else if (c == '.' && !has_dot) {
-                has_dot = true;
-                lexer->position++;
-                lexer->column++;
-            } else if ((c == 'e' || c == 'E') && lexer->position + 1 < lexer->source_len) {
-                // Exponent
-                char next = lexer->source[lexer->position + 1];
-                if (isdigit(next) || next == '+' || next == '-') {
-                    lexer->position += 2;
-                    lexer->column += 2;
-                    
-                    // Skip digits after exponent
-                    while (lexer->position < lexer->source_len && isdigit(lexer->source[lexer->position])) {
-                        lexer->position++;
-                        lexer->column++;
-                    }
-                } else {
-                    break;
-                }
-            } else {
-                break;
             }
+            
+            skipped_something = true;
         }
         
-        token->type = DM_TOKEN_NUMBER;
-        token->text = (char *)lexer->source + token_start;
-        token->length = lexer->position - token_start;
-    } else if (c == '"' || c == '\'') {
-        // String
-        char quote = c;
-        lexer->position++;
-        lexer->column++;
-        
-        token_start = lexer->position; // Skip the quote
-        
-        while (lexer->position < lexer->source_len) {
-            c = lexer->source[lexer->position];
+        // Skip multi-line comments
+        if (lexer->position + 1 < lexer->source_len && 
+            lexer->source[lexer->position] == '/' && lexer->source[lexer->position + 1] == '*') {
             
-            if (c == quote) {
-                break;
-            } else if (c == '\\' && lexer->position + 1 < lexer->source_len) {
-                // Escape sequence
-                lexer->position += 2;
-                lexer->column += 2;
-            } else {
-                if (c == '\n') {
+            lexer->position += 2;  // Skip '/*'
+            lexer->column += 2;
+            
+            while (lexer->position + 1 < lexer->source_len && 
+                   !(lexer->source[lexer->position] == '*' && lexer->source[lexer->position + 1] == '/')) {
+                
+                if (lexer->source[lexer->position] == '\n') {
                     lexer->line++;
                     lexer->column = 1;
                 } else {
@@ -233,59 +109,202 @@ dm_error_t dm_lexer_next_token(dm_lexer_t *lexer, dm_token_t *token) {
                 
                 lexer->position++;
             }
+            
+            if (lexer->position + 1 < lexer->source_len) {
+                lexer->position += 2;  // Skip '*/'
+                lexer->column += 2;
+                skipped_something = true;
+            }
         }
+    } while (skipped_something);
+}
+
+// Scan the next token
+dm_error_t dm_lexer_next_token(dm_lexer_t *lexer, dm_token_t *token) {
+    if (lexer == NULL || token == NULL) {
+        DM_DEBUG_ERROR_PRINT("Invalid arguments to dm_lexer_next_token\n");
+        return DM_ERROR_INVALID_ARGUMENT;
+    }
+    
+    // Skip whitespace and comments first
+    skip_whitespace_and_comments(lexer);
+    
+    // Check if we're at the end of the file
+    if (lexer->position >= lexer->source_len) {
+        token->type = DM_TOKEN_EOF;
+        token->text = NULL;
+        token->length = 0;
+        token->line = lexer->line;
+        token->column = lexer->column;
         
-        token->type = DM_TOKEN_STRING;
-        token->text = (char *)lexer->source + token_start;
-        token->length = lexer->position - token_start;
+        DM_DEBUG_VERBOSE_PRINT("TOKEN: EOF\n");
+        return DM_SUCCESS;
+    }
+    
+    token->line = lexer->line;
+    token->column = lexer->column;
+    
+    // Get the current character
+    char c = lexer->source[lexer->position];
+    
+    // Scan based on the first character
+    if (isalpha(c) || c == '_') {
+        // Identifier or keyword
+        size_t start = lexer->position;
         
-        // Skip closing quote
-        if (lexer->position < lexer->source_len) {
+        while (lexer->position < lexer->source_len && 
+               (isalnum(lexer->source[lexer->position]) || lexer->source[lexer->position] == '_')) {
             lexer->position++;
             lexer->column++;
         }
-    } else if (is_operator(c)) {
-        // Operator
-        token->type = DM_TOKEN_OPERATOR;
-        token->text = (char *)lexer->source + token_start;
-        token->length = 1;
-        token->line = token_line;
-        token->column = token_column;
         
-        // Handle multi-character operators (e.g., ==, !=, etc.)
-        if (lexer->position + 1 < lexer->source_len) {
-            char next = lexer->source[lexer->position + 1];
-            
-            if ((c == '=' && next == '=') ||  // ==
-                (c == '!' && next == '=') ||  // !=
-                (c == '<' && next == '=') ||  // <=
-                (c == '>' && next == '=') ||  // >=
-                (c == '&' && next == '&') ||  // &&
-                (c == '|' && next == '|')) {  // ||
-                
-                token->length = 2;
-                lexer->position++;
-                lexer->column++;
+        token->text = (char*)&lexer->source[start];
+        token->length = lexer->position - start;
+        
+        // Check if it's a keyword
+        bool is_keyword = false;
+        for (size_t i = 0; i < KEYWORD_COUNT; i++) {
+            if (token->length == strlen(KEYWORDS[i]) &&
+                strncmp(token->text, KEYWORDS[i], token->length) == 0) {
+                token->type = DM_TOKEN_KEYWORD;
+                is_keyword = true;
+                break;
             }
         }
         
-        lexer->position++;
-        lexer->column++;
+        if (!is_keyword) {
+            token->type = DM_TOKEN_IDENTIFIER;
+        }
         
-    } else {
-        // Symbol or unknown character
-        token->type = DM_TOKEN_SYMBOL;
-        token->text = (char *)lexer->source + token_start;
-        token->length = 1;
-        token->line = token_line;
-        token->column = token_column;
-        
-        lexer->position++;
-        lexer->column++;
+        DM_DEBUG_VERBOSE_PRINT("TOKEN: %s '%.*s'\n", 
+                token->type == DM_TOKEN_KEYWORD ? "KEYWORD" : "IDENTIFIER", 
+                (int)token->length, token->text);
+        return DM_SUCCESS;
     }
-    
-    // Update current token
-    lexer->current = *token;
-    
-    return DM_SUCCESS;
+    else if (isdigit(c)) {
+        // Number
+        size_t start = lexer->position;
+        bool has_decimal = false;
+        
+        while (lexer->position < lexer->source_len && 
+               (isdigit(lexer->source[lexer->position]) || 
+                lexer->source[lexer->position] == '.')) {
+            
+            if (lexer->source[lexer->position] == '.') {
+                if (has_decimal) {
+                    break;  // Can't have two decimal points
+                }
+                has_decimal = true;
+            }
+            
+            lexer->position++;
+            lexer->column++;
+        }
+        
+        token->type = DM_TOKEN_NUMBER;
+        token->text = (char*)&lexer->source[start];
+        token->length = lexer->position - start;
+        
+        DM_DEBUG_VERBOSE_PRINT("TOKEN: NUMBER '%.*s'\n", (int)token->length, token->text);
+        return DM_SUCCESS;
+    }
+    else if (c == '"' || c == '\'') {
+        // String
+        char quote = c;
+        size_t start = lexer->position;
+        
+        // Skip the opening quote
+        lexer->position++;
+        lexer->column++;
+        
+        // Find the closing quote
+        while (lexer->position < lexer->source_len && 
+               lexer->source[lexer->position] != quote) {
+            
+            // Handle escape sequences
+            if (lexer->source[lexer->position] == '\\' && 
+                lexer->position + 1 < lexer->source_len) {
+                lexer->position++;
+                lexer->column++;
+            }
+            
+            lexer->position++;
+            lexer->column++;
+        }
+        
+        // Check if we found the closing quote
+        if (lexer->position >= lexer->source_len) {
+            // Unterminated string
+            DM_DEBUG_ERROR_PRINT("Syntax error: Unterminated string starting at line %zu, column %zu\n", 
+                               token->line, token->column);
+            return DM_ERROR_SYNTAX_ERROR;
+        }
+        
+        // Skip the closing quote
+        lexer->position++;
+        lexer->column++;
+        
+        token->type = DM_TOKEN_STRING;
+        token->text = (char*)&lexer->source[start];
+        token->length = lexer->position - start;
+        
+        DM_DEBUG_VERBOSE_PRINT("TOKEN: STRING '%.*s'\n", (int)token->length, token->text);
+        return DM_SUCCESS;
+    }
+    else if (strchr("+-*/%=<>!&|^~", c)) {
+        // Operator
+        size_t start = lexer->position;
+        
+        // Handle multi-character operators
+        if (lexer->position + 1 < lexer->source_len) {
+            char next = lexer->source[lexer->position + 1];
+            
+            if ((c == '=' && next == '=') || 
+                (c == '!' && next == '=') ||
+                (c == '<' && next == '=') ||
+                (c == '>' && next == '=') ||
+                (c == '&' && next == '&') ||
+                (c == '|' && next == '|')) {
+                
+                lexer->position += 2;
+                lexer->column += 2;
+                
+                token->type = DM_TOKEN_OPERATOR;
+                token->text = (char*)&lexer->source[start];
+                token->length = 2;
+                
+                DM_DEBUG_VERBOSE_PRINT("TOKEN: OPERATOR '%.*s'\n", (int)token->length, token->text);
+                return DM_SUCCESS;
+            }
+        }
+        
+        // Single-character operator
+        lexer->position++;
+        lexer->column++;
+        
+        token->type = DM_TOKEN_OPERATOR;
+        token->text = (char*)&lexer->source[start];
+        token->length = 1;
+        
+        DM_DEBUG_VERBOSE_PRINT("TOKEN: OPERATOR '%.*s'\n", (int)token->length, token->text);
+        return DM_SUCCESS;
+    }
+    else if (strchr("()[]{};,.", c)) {
+        // Symbol
+        token->type = DM_TOKEN_SYMBOL;
+        token->text = (char*)&lexer->source[lexer->position];
+        token->length = 1;
+        
+        lexer->position++;
+        lexer->column++;
+        
+        DM_DEBUG_VERBOSE_PRINT("TOKEN: SYMBOL '%.*s'\n", (int)token->length, token->text);
+        return DM_SUCCESS;
+    }
+    else {
+        // Unknown character
+        DM_DEBUG_ERROR_PRINT("Syntax error: Unknown character '%c' at line %zu, column %zu\n", 
+                           c, lexer->line, lexer->column);
+        return DM_ERROR_SYNTAX_ERROR;
+    }
 } 

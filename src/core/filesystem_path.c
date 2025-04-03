@@ -25,11 +25,8 @@ static dm_vfs_t* get_vfs(dm_context_t *ctx) {
 // Join two paths
 dm_error_t dm_path_join(dm_context_t *ctx, const char *path1, const char *path2, char **result) {
     if (ctx == NULL || path1 == NULL || path2 == NULL || result == NULL) {
-        fprintf(stderr, "dm_path_join: Invalid argument\n");
         return DM_ERROR_INVALID_ARGUMENT;
     }
-    
-    fprintf(stderr, "dm_path_join: path1=%s, path2=%s\n", path1, path2);
     
     // Get path separator
     dm_vfs_t *vfs = get_vfs(ctx);
@@ -40,11 +37,9 @@ dm_error_t dm_path_join(dm_context_t *ctx, const char *path1, const char *path2,
         // path2 is absolute, just return it
         *result = dm_strdup(ctx, path2);
         if (*result == NULL) {
-            fprintf(stderr, "dm_path_join: Failed to duplicate absolute path2\n");
             return DM_ERROR_MEMORY_ALLOCATION;
         }
         
-        fprintf(stderr, "dm_path_join: Result (absolute path2): %s\n", *result);
         return DM_SUCCESS;
     }
     
@@ -52,11 +47,9 @@ dm_error_t dm_path_join(dm_context_t *ctx, const char *path1, const char *path2,
     if (strlen(path1) == 0) {
         *result = dm_strdup(ctx, path2);
         if (*result == NULL) {
-            fprintf(stderr, "dm_path_join: Failed to duplicate path2 with empty path1\n");
             return DM_ERROR_MEMORY_ALLOCATION;
         }
         
-        fprintf(stderr, "dm_path_join: Result (empty path1): %s\n", *result);
         return DM_SUCCESS;
     }
     
@@ -68,7 +61,6 @@ dm_error_t dm_path_join(dm_context_t *ctx, const char *path1, const char *path2,
     // Allocate result
     *result = dm_malloc(ctx, strlen(path1) + strlen(path2) + 2);
     if (*result == NULL) {
-        fprintf(stderr, "dm_path_join: Failed to allocate result\n");
         return DM_ERROR_MEMORY_ALLOCATION;
     }
     
@@ -85,28 +77,22 @@ dm_error_t dm_path_join(dm_context_t *ctx, const char *path1, const char *path2,
     // Append path2
     strcat(*result, path2);
     
-    fprintf(stderr, "dm_path_join: Result: %s\n", *result);
     return DM_SUCCESS;
 }
 
 // Get absolute path
 dm_error_t dm_path_absolute(dm_context_t *ctx, const char *path, char **abs_path) {
     if (ctx == NULL || path == NULL || abs_path == NULL) {
-        fprintf(stderr, "dm_path_absolute: Invalid argument\n");
         return DM_ERROR_INVALID_ARGUMENT;
     }
-    
-    fprintf(stderr, "dm_path_absolute: path=%s\n", path);
     
     // If path is already absolute, just copy it
     if (path[0] == '/') {
         *abs_path = dm_strdup(ctx, path);
         if (*abs_path == NULL) {
-            fprintf(stderr, "dm_path_absolute: Failed to duplicate path\n");
             return DM_ERROR_MEMORY_ALLOCATION;
         }
         
-        fprintf(stderr, "dm_path_absolute: Already absolute path: %s\n", *abs_path);
         return DM_SUCCESS;
     }
     
@@ -115,12 +101,9 @@ dm_error_t dm_path_absolute(dm_context_t *ctx, const char *path, char **abs_path
         // Get working directory
         dm_error_t err = dm_vfs_get_working_dir(ctx, abs_path);
         if (err != DM_SUCCESS) {
-            fprintf(stderr, "dm_path_absolute: Failed to get working directory: %s\n", 
-                    dm_error_string(err));
             return err;
         }
         
-        fprintf(stderr, "dm_path_absolute: For '.', returning working dir: %s\n", *abs_path);
         return DM_SUCCESS;
     }
     
@@ -128,23 +111,15 @@ dm_error_t dm_path_absolute(dm_context_t *ctx, const char *path, char **abs_path
     char *working_dir = NULL;
     dm_error_t err = dm_vfs_get_working_dir(ctx, &working_dir);
     if (err != DM_SUCCESS) {
-        fprintf(stderr, "dm_path_absolute: Failed to get working directory: %s\n", 
-                dm_error_string(err));
         return err;
     }
-    
-    fprintf(stderr, "dm_path_absolute: Working directory: %s\n", working_dir);
     
     // Join working directory and path
     err = dm_path_join(ctx, working_dir, path, abs_path);
     if (err != DM_SUCCESS) {
-        fprintf(stderr, "dm_path_absolute: Failed to join paths: %s\n", 
-                dm_error_string(err));
         dm_free(ctx, working_dir);
         return err;
     }
-    
-    fprintf(stderr, "dm_path_absolute: Absolute path: %s\n", *abs_path);
     
     // Free working directory
     dm_free(ctx, working_dir);

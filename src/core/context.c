@@ -358,4 +358,15 @@ void dm_value_free(dm_context_t *ctx, dm_value_t *value) {
     
     // Reset to NULL type
     value->type = DM_TYPE_NULL;
+}
+
+// Set error message in context
+void dm_context_set_error(dm_context_t *ctx, const char *message) {
+    if (ctx == NULL || message == NULL) {
+        return;
+    }
+    
+    // Copy the message with truncation if needed
+    strncpy(ctx->error_message, message, sizeof(ctx->error_message) - 1);
+    ctx->error_message[sizeof(ctx->error_message) - 1] = '\0';
 } 
