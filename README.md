@@ -1,6 +1,6 @@
-# DMKernel - Data Mining Runtime
+# DMKernel - Kernel for Data Mining and AI, using DM Programming Language 
 
-A specialized kernel for data mining and AI applications with focus on earthquake aftershock prediction.
+A specialized kernel for data mining and AI applications, using DM Programming Language
 
 ## Overview
 
