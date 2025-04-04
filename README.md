@@ -82,14 +82,6 @@ model = decision_tree(features, target: "aftershock")
 predictions = model.predict(new_data)
 ```
 
-## Earthquake Prediction Features
-
-- USGS data integration
-- Temporal and spatial pattern recognition
-- Magnitude analysis
-- Aftershock decay modeling (Omori's law)
-- Real-time monitoring capabilities
-
 ## License
 
 This project is open source and available under the MIT License.
